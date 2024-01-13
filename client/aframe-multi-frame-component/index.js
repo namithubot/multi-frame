@@ -17,6 +17,7 @@ let socket = undefined;
 
 let CONFIG = {
   server: {
+    protocol: "http",
     address: "0.0.0.0",
     port: 3000
   },
@@ -27,10 +28,18 @@ let CONFIG = {
 };
 
 /**
+ * Gets the socket address based on the config provided.
+ * @returns The socket connection URL.
+ */
+function getSocketAddress () {
+  return `${CONFIG.server.protocol}://${CONFIG.server.address}:${CONFIG.server.port}/${CONFIG.namespace}`;
+}
+
+/**
  * Initializes multiframe with the given config.
  * @param {typeof CONFIG} config 
  */
-export function initializeMultiFrame(config) {
+export function initializeMultiFrame(config = CONFIG) {
   CONFIG = { ...CONFIG, ...config };
   socket = io(getSocketAddress());
 
@@ -40,18 +49,10 @@ export function initializeMultiFrame(config) {
       return;
     }
 
-    document.querySelector(`[mfId=${data.mfId}]`)?.[0]?.dispatchEvent(
+    document.querySelector(`[mfId=${data.mfId}]`)[0].dispatchEvent(
       new CustomEvent('multiUpdateReceived', data)
     );
   });
-}
-
-/**
- * Gets the socket address based on the config provided.
- * @returns The socket connection URL.
- */
-function getSocketAddress () {
-  return `wss://${CONFIG.server.address}:${CONFIG.server.port}/${CONFIG.namespace}`;
 }
 
 /**
@@ -68,6 +69,7 @@ function sendProp(data) {
 AFRAME.registerComponent("multi-frame", {
   schema: {
     mfId: { type: "string", default: "" },
+    dirty: { type: "boolean", default: false }
   },
 
   /**
@@ -80,11 +82,8 @@ AFRAME.registerComponent("multi-frame", {
    */
   init: function () {
     if (!this.data.mfId) {
-      console.info(`No mfId provided to the multi frame network object. It is avisable to add one.
-			For now attaching a random number to it.`);
-      const mfId = crypto.randomUUID();
-      this.el.setAttribute("mfId", mfId);
-      this.data.mfId = mfId;
+      throw new Error(`No mfId provided to the multi frame network object. You must add one.
+      This is the value that is used to synchronize the objects and must match with the same objects in the network.`);
     }
 
     console.log(`Adding multi-frame-network-obj with mfId ${this.data.mfId}`);
@@ -129,18 +128,21 @@ AFRAME.registerComponent("multi-frame", {
      * @param {any} evt Event data
      */
     componentchanged: function (evt) {
-      const changedProp = evt.detail.name;
+      const propName = evt.detail.name;
 
       // Repeated change or no change.
       // TODO: It would still make one round to the server for each connected client.
       // Find a better way to do this.
-      if (evt.target.components[propName].attrValue === evt.srcElement.components[propName].attrValue) {
+      if (this.data.dirty
+        // TODO: Maybe use lodash?
+        || JSON.stringify(evt.srcElement.components[propName].previousOldData) === JSON.stringify(evt.srcElement.components[propName].attrValue)) {
+        this.data.dirty = false;
         return;
       }
 
       const changedDetail = {
         clientId: CONFIG.client.id,
-        propName: changedProp,
+        propName,
         mfId: evt.srcElement.components["multi-frame"].data.mfId,
         attrName: evt.target.components[propName].attrName,
         attrValue: evt.target.components[propName].attrValue,
@@ -156,7 +158,10 @@ AFRAME.registerComponent("multi-frame", {
      * @param {*} evt Change event data.
      */
     multiUpdateReceived: function (evt) {
+      // Mark the element dirty to avoid a loop
+      this.data.dirty = true;
       this.el.setAttribute(evt.attrName, evt.attrValue);
+      this.data.dirty = false;
     }
   },
 });
