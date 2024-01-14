@@ -1,5 +1,5 @@
 /* global AFRAME */
-import { io } from "socket.io-client";
+import { sendProp, initializeMultiFrame } from "./sock";
 
 if (typeof AFRAME === "undefined") {
   throw new Error(
@@ -13,8 +13,6 @@ if (typeof io === "undefined") {
   );
 }
 
-let socket = undefined;
-
 let CONFIG = {
   server: {
     protocol: "http",
@@ -26,42 +24,6 @@ let CONFIG = {
   },
   namespace: 'multi-frame',
 };
-
-/**
- * Gets the socket address based on the config provided.
- * @returns The socket connection URL.
- */
-function getSocketAddress () {
-  return `${CONFIG.server.protocol}://${CONFIG.server.address}:${CONFIG.server.port}/${CONFIG.namespace}`;
-}
-
-/**
- * Initializes multiframe with the given config.
- * @param {typeof CONFIG} config 
- */
-export function initializeMultiFrame(config = CONFIG) {
-  CONFIG = { ...CONFIG, ...config };
-  socket = io(getSocketAddress());
-
-  socket.on('entity-updated', (data) => {
-    // If the action is performed by self.
-    if (data.clientId === CONFIG.client.id) {
-      return;
-    }
-
-    document.querySelector(`[mfId=${data.mfId}]`)[0].dispatchEvent(
-      new CustomEvent('multiUpdateReceived', data)
-    );
-  });
-}
-
-/**
- * Sends the update event to the server socket,
- * @param {*} data Event data.
- */
-function sendProp(data) {
-  socket.volatile.emit('update-entity', data);
-}
 
 /**
  * Multi Frame component for A-Frame.
