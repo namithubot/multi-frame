@@ -13,10 +13,10 @@ if (typeof io === "undefined") {
   );
 }
 
-let CONFIG = {
+export const CONFIG = {
   server: {
     protocol: "http",
-    address: "0.0.0.0",
+    address: "localhost",
     port: 3000
   },
   client: {
@@ -49,6 +49,7 @@ AFRAME.registerComponent("multi-frame", {
     }
 
     console.log(`Adding multi-frame-network-obj with mfId ${this.data.mfId}`);
+    this.el.setAttribute('mfId', this.data.mfId);
   },
 
   /**
@@ -91,6 +92,7 @@ AFRAME.registerComponent("multi-frame", {
      */
     componentchanged: function (evt) {
       const propName = evt.detail.name;
+      console.log('Changed');
 
       // Repeated change or no change.
       // TODO: It would still make one round to the server for each connected client.
@@ -122,8 +124,13 @@ AFRAME.registerComponent("multi-frame", {
     multiUpdateReceived: function (evt) {
       // Mark the element dirty to avoid a loop
       this.data.dirty = true;
-      this.el.setAttribute(evt.attrName, evt.attrValue);
+      this.el.setAttribute(evt.detail.attrName, evt.detail.attrValue);
       this.data.dirty = false;
     }
   },
 });
+
+export function startMultiplayer()
+{
+  initializeMultiFrame(CONFIG);
+}
